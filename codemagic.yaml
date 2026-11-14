@@ -1,0 +1,46 @@
+workflows:
+  ios-unsigned:
+    name: Build unsigned IPA
+    max_build_duration: 40
+    environment:
+      xcode: latest
+      vars:
+        SCHEME: LocalPass
+        PROJECT: LocalPass.xcodeproj
+    scripts:
+      - name: Show toolchain
+        script: |
+          xcodebuild -version
+          sw_vers
+      - name: Build unsigned archive
+        script: |
+          set -e
+          xcodebuild \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$CM_BUILD_DIR/LocalPass.xcarchive" \
+            -derivedDataPath "$CM_BUILD_DIR/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            ENABLE_BITCODE=NO \
+            archive
+      - name: Package IPA
+        script: |
+          set -e
+          APP="$CM_BUILD_DIR/LocalPass.xcarchive/Products/Applications/LocalPass.app"
+          if [ ! -d "$APP" ]; then
+            echo "找不到 .app"
+            find "$CM_BUILD_DIR/LocalPass.xcarchive" -maxdepth 4
+            exit 1
+          fi
+          mkdir -p "$CM_BUILD_DIR/ipa/Payload"
+          cp -R "$APP" "$CM_BUILD_DIR/ipa/Payload/"
+          cd "$CM_BUILD_DIR/ipa"
+          zip -qry "$CM_BUILD_DIR/LocalPass.ipa" Payload
+          ls -lh "$CM_BUILD_DIR/LocalPass.ipa"
+    artifacts:
+      - LocalPass.ipa
