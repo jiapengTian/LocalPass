@@ -1,0 +1,78 @@
+name: Build unsigned IPA
+
+on:
+  workflow_dispatch:
+    inputs:
+      bundle_id:
+        description: "可选的 Bundle ID（留空则使用工程里的 com.localpass.app）"
+        required: false
+        default: ""
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build LocalPass.ipa
+    # macOS 14 自带 Xcode 15.x，能编译 iOS 16/17 目标
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: |
+          xcodebuild -version
+          swift --version
+
+      - name: Build unsigned archive
+        run: |
+          set -euo pipefail
+          BUNDLE_ID="${{ inputs.bundle_id }}"
+          if [ -z "$BUNDLE_ID" ]; then
+            BUNDLE_ID="com.localpass.app"
+          fi
+          echo "Bundle ID: $BUNDLE_ID"
+
+          xcodebuild \
+            -project LocalPass.xcodeproj \
+            -scheme LocalPass \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/LocalPass.xcarchive" \
+            -derivedDataPath "$RUNNER_TEMP/DerivedData" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            ENABLE_BITCODE=NO \
+            PRODUCT_BUNDLE_IDENTIFIER="$BUNDLE_ID" \
+            archive
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/LocalPass.xcarchive/Products/Applications/LocalPass.app"
+          if [ ! -d "$APP" ]; then
+            echo "找不到 .app，列出归档内容："
+            find "$RUNNER_TEMP/LocalPass.xcarchive" -maxdepth 4
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/ipa/Payload"
+          cp -R "$APP" "$RUNNER_TEMP/ipa/Payload/"
+          cd "$RUNNER_TEMP/ipa"
+          zip -qry "$RUNNER_TEMP/LocalPass.ipa" Payload
+          ls -lh "$RUNNER_TEMP/LocalPass.ipa"
+          unzip -l "$RUNNER_TEMP/LocalPass.ipa" | head -30
+
+      - name: Upload IPA artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: LocalPass-ipa
+          path: ${{ runner.temp }}/LocalPass.ipa
+          if-no-files-found: error
+          retention-days: 30
