@@ -17,7 +17,7 @@ jobs:
   build:
     name: Build LocalPass.ipa
     # macOS 14 自带 Xcode 15.x，能编译 iOS 16/17 目标
-    runs-on: macos-14
+    runs-on: macos-13
     timeout-minutes: 30
 
     steps:
