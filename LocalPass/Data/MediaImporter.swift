@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import PhotosUI
 import AVFoundation
 import UniformTypeIdentifiers
